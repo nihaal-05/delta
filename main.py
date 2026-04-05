@@ -12,16 +12,8 @@ def get_btc_price():
         data = response.json()
 
         for item in data.get("result", []):
-            symbol = item.get("symbol", "")
-
-            # Use BTCUSDT or fallback any BTC symbol
-            if symbol == "BTCUSDT":
-                return float(item.get("last_price", 0))
-
-        # fallback (if BTCUSDT not found)
-        for item in data.get("result", []):
-            if "BTC" in item.get("symbol", ""):
-                return float(item.get("last_price", 0))
+            if item.get("symbol") == ".DEBTCUSDT":
+                return float(item.get("mark_price", 0))
 
         return None
 
@@ -42,16 +34,14 @@ def get_all_products():
         return []
 
 
-# 🔹 Filter BTC options (FIXED using real API structure)
+# 🔹 Filter BTC options
 def filter_btc_options(products):
     btc_options = []
 
     for p in products:
         try:
             contract_type = str(p.get("contract_type", "")).lower()
-
-            underlying_data = p.get("underlying_asset", {})
-            underlying_symbol = underlying_data.get("symbol", "")
+            underlying_symbol = p.get("underlying_asset", {}).get("symbol", "")
 
             if "option" in contract_type and underlying_symbol == "BTC":
                 btc_options.append(p)
@@ -62,39 +52,53 @@ def filter_btc_options(products):
     return btc_options
 
 
+# 🔹 Select ONE best strike (CE or PE)
+def select_best_option(options, btc_price):
+    closest_option = None
+    min_diff = float("inf")
+
+    for opt in options:
+        try:
+            strike = float(opt.get("strike_price", 0))
+            diff = abs(strike - btc_price)
+
+            if diff < min_diff:
+                min_diff = diff
+                closest_option = opt
+
+        except:
+            continue
+
+    return closest_option
+
+
 # 🔹 Main bot loop
 def run_bot():
     while True:
-        print("\n--- RUNNING SCANNER ---")
+        print("\n--- RUNNING BOT ---")
 
-        # BTC Price
         btc_price = get_btc_price()
         print("BTC Price:", btc_price)
 
-        # Get products
         products = get_all_products()
-        print("Total products:", len(products))
-
-        # Filter BTC options
         btc_options = filter_btc_options(products)
-        print("BTC Options Found:", len(btc_options))
 
-        # Print sample
-        if len(btc_options) == 0:
-            print("\n⚠️ No BTC options found. Debug sample:")
-            for p in products[:3]:
-                print(p)
-        else:
-            print("\nSample BTC Options:")
-            for opt in btc_options[:5]:
+        print("Total BTC Options:", len(btc_options))
+
+        if btc_price and len(btc_options) > 0:
+            best_option = select_best_option(btc_options, btc_price)
+
+            if best_option:
+                print("\n🎯 SELECTED OPTION:")
                 print(
-                    f"{opt.get('symbol')} | Strike: {opt.get('strike_price')} | Expiry: {opt.get('settlement_time')} | Type: {opt.get('contract_type')}"
+                    f"{best_option.get('symbol')} | Strike: {best_option.get('strike_price')} | Type: {best_option.get('contract_type')}"
                 )
+        else:
+            print("No valid data")
 
         time.sleep(15)
 
 
-# 🔹 Start bot
 if __name__ == "__main__":
     print("Bot started...")
     run_bot()
