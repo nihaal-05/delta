@@ -1,4 +1,4 @@
-import requests
+ import requests
 import time
 
 BASE_URL = "https://api.delta.exchange"
@@ -10,9 +10,9 @@ def get_btc_price():
         response = requests.get(url)
         data = response.json()
 
-        for item in data["result"]:
+        for item in data.get("result", []):
             if item.get("symbol") == "BTCUSD":
-                return float(item.get("last_price"))
+                return float(item.get("last_price", 0))
 
         return None
 
@@ -33,43 +33,50 @@ def get_all_products():
         return []
 
 
-# Filter BTC options
- def filter_btc_options(products):
+# Filter BTC options (SAFE VERSION)
+def filter_btc_options(products):
     btc_options = []
 
     for p in products:
         try:
-            # Correct fields for Delta
-            if (
-                p.get("contract_type") == "call_option"
-                or p.get("contract_type") == "put_option"
-            ):
-                if p.get("underlying") == "BTC":
-                    btc_options.append(p)
+            contract_type = str(p.get("contract_type", "")).lower()
+            underlying = str(p.get("underlying", "")).upper()
 
-        except:
+            # Check option type safely
+            if "option" in contract_type and underlying == "BTC":
+                btc_options.append(p)
+
+        except Exception as e:
             continue
 
     return btc_options
 
-        # BTC price
+
+def run_bot():
+    while True:
+        print("\n--- RUNNING SCANNER ---")
+
         btc_price = get_btc_price()
         print("BTC Price:", btc_price)
 
-        # Products
         products = get_all_products()
         print("Total products:", len(products))
 
-        # Filter BTC options
         btc_options = filter_btc_options(products)
         print("BTC Options Found:", len(btc_options))
 
-        # Print sample options
-        print("\nSample Options:")
-        for opt in btc_options[:5]:
-            print(
-                f"{opt.get('symbol')} | Strike: {opt.get('strike_price')} | Expiry: {opt.get('expiry_date')}"
-            )
+        # If still 0 → debug automatically
+        if len(btc_options) == 0:
+            print("\nDEBUG SAMPLE PRODUCT:")
+            for p in products[:3]:
+                print(p)
+
+        else:
+            print("\nSample Options:")
+            for opt in btc_options[:5]:
+                print(
+                    f"{opt.get('symbol')} | Strike: {opt.get('strike_price')} | Expiry: {opt.get('expiry_date')} | Type: {opt.get('contract_type')}"
+                )
 
         time.sleep(15)
 
