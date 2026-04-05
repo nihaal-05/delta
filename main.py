@@ -34,26 +34,23 @@ def get_all_products():
 
 
 # Filter BTC options
-def filter_btc_options(products):
+ def filter_btc_options(products):
     btc_options = []
 
     for p in products:
         try:
-            symbol = p.get("symbol", "")
-
-            # Easiest reliable filter → symbol contains BTC and option format
-            if "BTC" in symbol and ("-C" in symbol or "-P" in symbol):
-                btc_options.append(p)
+            # Correct fields for Delta
+            if (
+                p.get("contract_type") == "call_option"
+                or p.get("contract_type") == "put_option"
+            ):
+                if p.get("underlying") == "BTC":
+                    btc_options.append(p)
 
         except:
             continue
 
     return btc_options
-
-
-def run_bot():
-    while True:
-        print("\n--- RUNNING SCANNER ---")
 
         # BTC price
         btc_price = get_btc_price()
