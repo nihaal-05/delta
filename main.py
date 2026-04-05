@@ -4,8 +4,10 @@ import time
 DELTA_URL = "https://api.delta.exchange"
 BINANCE_URL = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
 
+previous_price = None
 
-# 🔹 Get BTC price (RELIABLE)
+
+# 🔹 BTC price (reliable)
 def get_btc_price():
     try:
         r = requests.get(BINANCE_URL, timeout=5)
@@ -13,12 +15,12 @@ def get_btc_price():
         price = float(data["price"])
 
         if price < 10000:
-            raise Exception("Invalid BTC price")
+            return None
 
         return price
 
     except Exception as e:
-        print("❌ BTC price error:", e)
+        print("BTC price error:", e)
         return None
 
 
@@ -29,11 +31,11 @@ def get_products():
         data = r.json()
         return data.get("result", [])
     except Exception as e:
-        print("❌ Product fetch error:", e)
+        print("Product error:", e)
         return []
 
 
-# 🔹 Filter BTC options ONLY
+# 🔹 Filter BTC options
 def filter_btc_options(products):
     result = []
 
@@ -51,25 +53,45 @@ def filter_btc_options(products):
     return result
 
 
-# 🔹 Get nearest expiry
+# 🔹 Nearest expiry
 def get_nearest_expiry(options):
     try:
         options = sorted(options, key=lambda x: x.get("settlement_time", ""))
         nearest = options[0].get("settlement_time")
 
-        filtered = [o for o in options if o.get("settlement_time") == nearest]
-
-        return filtered
+        return [o for o in options if o.get("settlement_time") == nearest]
     except:
         return []
 
 
-# 🔹 Select best ATM strike (ONLY ONE)
-def select_atm_option(options, btc_price):
+# 🔹 OTM + Direction selection (CORE FIX)
+def select_otm_option(options, btc_price, prev_price):
+    if prev_price is None:
+        return None
+
+    # Decide direction
+    direction = "call_options" if btc_price > prev_price else "put_options"
+
+    otm_options = []
+
+    for opt in options:
+        try:
+            strike = float(opt.get("strike_price", 0))
+
+            if direction == "call_options" and strike > btc_price:
+                otm_options.append(opt)
+
+            elif direction == "put_options" and strike < btc_price:
+                otm_options.append(opt)
+
+        except:
+            continue
+
+    # Pick closest OTM
     best = None
     min_diff = float("inf")
 
-    for opt in options:
+    for opt in otm_options:
         try:
             strike = float(opt.get("strike_price", 0))
             diff = abs(strike - btc_price)
@@ -85,41 +107,40 @@ def select_atm_option(options, btc_price):
 
 # 🔹 MAIN LOOP
 def run():
+    global previous_price
+
     while True:
-        print("\n==============================")
+        print("\n========================")
 
         btc_price = get_btc_price()
         print("BTC Price:", btc_price)
 
         products = get_products()
-        print("Total Products:", len(products))
-
         btc_options = filter_btc_options(products)
-        print("BTC Options:", len(btc_options))
+
+        print("Total BTC Options:", len(btc_options))
 
         if not btc_price or not btc_options:
-            print("⚠️ Waiting for valid data...")
+            print("Waiting for data...")
             time.sleep(10)
             continue
 
         nearest = get_nearest_expiry(btc_options)
         print("Nearest Expiry Options:", len(nearest))
 
-        if not nearest:
-            print("⚠️ No nearest expiry options")
-            time.sleep(10)
-            continue
+        selected = select_otm_option(nearest, btc_price, previous_price)
 
-        best = select_atm_option(nearest, btc_price)
-
-        if best:
-            print("\n🎯 FINAL SELECTED OPTION:")
-            print("Symbol:", best.get("symbol"))
-            print("Strike:", best.get("strike_price"))
-            print("Type:", best.get("contract_type"))
-            print("Expiry:", best.get("settlement_time"))
+        if selected:
+            print("\n🎯 SELECTED OTM OPTION:")
+            print("Symbol:", selected.get("symbol"))
+            print("Strike:", selected.get("strike_price"))
+            print("Type:", selected.get("contract_type"))
+            print("Expiry:", selected.get("settlement_time"))
         else:
-            print("⚠️ No option selected")
+            print("No option selected yet (waiting for direction)")
+
+        # update price memory
+        previous_price = btc_price
 
         time.sleep(15)
 
@@ -127,3 +148,4 @@ def run():
 if __name__ == "__main__":
     print("🚀 BOT STARTED")
     run()
+    
