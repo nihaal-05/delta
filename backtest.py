@@ -1,4 +1,4 @@
-import random
+ import random
 
 TOTAL_CAPITAL = 1000
 TRADES = 200
@@ -17,6 +17,7 @@ def simulate_trade():
     ath = random.uniform(80, 150)
     price = ath
 
+    # levels
     l90 = ath * 0.1
     l95 = ath * 0.05
     l99 = ath * 0.01
@@ -24,10 +25,14 @@ def simulate_trade():
     entries = []
     capital_used = 0
 
-    for step in range(50):
+    for step in range(60):
 
-        # realistic movement
-        move = random.uniform(-0.25, 0.15)
+        # 🔥 realistic movement (FIXED)
+        if random.random() < 0.6:
+            move = random.uniform(-0.12, -0.02)  # decay
+        else:
+            move = random.uniform(0.02, 0.18)   # bounce
+
         price *= (1 + move)
 
         if price <= 0:
@@ -43,7 +48,7 @@ def simulate_trade():
             entries.append(price)
             capital_used += TOTAL_CAPITAL * 0.3
 
-        # ENTRY 3
+        # ENTRY 3 (SMART)
         elif len(entries) == 2 and price <= l99:
             if price < entries[-1] * 0.8:
                 entries.append(price)
@@ -51,16 +56,16 @@ def simulate_trade():
 
         # EXIT
 
-        # 1 entry → 2x
+        # 1 entry → 1.8x (realistic)
         if len(entries) == 1:
-            if price >= entries[0] * 2:
+            if price >= entries[0] * 1.8:
                 profit = TOTAL_CAPITAL
                 total_profit += profit
                 win_amounts.append(profit)
                 wins += 1
                 return
 
-        # 2+ entries → breakeven type
+        # 2+ entries → recovery exit
         elif len(entries) >= 2:
             if price >= entries[0]:
                 profit = TOTAL_CAPITAL * 0.3
@@ -75,9 +80,10 @@ def simulate_trade():
     loss_amounts.append(capital_used)
 
 
-# 🔥 RUN
+# 🔥 RUN BACKTEST
 for _ in range(TRADES):
     simulate_trade()
+
 
 # 🔥 METRICS
 winrate = (wins / TRADES) * 100
@@ -87,7 +93,9 @@ avg_loss = sum(loss_amounts) / len(loss_amounts) if loss_amounts else 1
 
 rr = avg_win / avg_loss if avg_loss != 0 else 0
 
-print("\n===== BACKTEST RESULTS =====")
+
+# 🔥 FINAL OUTPUT
+print("\n===== FINAL BACKTEST RESULTS =====")
 print("Trades:", TRADES)
 print("Wins:", wins)
 print("Losses:", losses)
