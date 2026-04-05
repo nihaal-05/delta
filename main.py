@@ -4,7 +4,7 @@ import time
 BASE_URL = "https://api.delta.exchange"
 
 
-# 🔹 Get BTC price
+# 🔹 Get BTC price (FIXED)
 def get_btc_price():
     try:
         url = BASE_URL + "/v2/tickers"
@@ -12,7 +12,15 @@ def get_btc_price():
         data = response.json()
 
         for item in data.get("result", []):
-            if item.get("symbol") == "BTCUSD":
+            symbol = item.get("symbol", "")
+
+            # Use BTCUSDT or fallback any BTC symbol
+            if symbol == "BTCUSDT":
+                return float(item.get("last_price", 0))
+
+        # fallback (if BTCUSDT not found)
+        for item in data.get("result", []):
+            if "BTC" in item.get("symbol", ""):
                 return float(item.get("last_price", 0))
 
         return None
@@ -34,7 +42,7 @@ def get_all_products():
         return []
 
 
-# 🔹 Filter ONLY BTC options (FIXED)
+# 🔹 Filter BTC options (FIXED using real API structure)
 def filter_btc_options(products):
     btc_options = []
 
@@ -45,7 +53,6 @@ def filter_btc_options(products):
             underlying_data = p.get("underlying_asset", {})
             underlying_symbol = underlying_data.get("symbol", "")
 
-            # Correct filter
             if "option" in contract_type and underlying_symbol == "BTC":
                 btc_options.append(p)
 
@@ -72,7 +79,7 @@ def run_bot():
         btc_options = filter_btc_options(products)
         print("BTC Options Found:", len(btc_options))
 
-        # Print results
+        # Print sample
         if len(btc_options) == 0:
             print("\n⚠️ No BTC options found. Debug sample:")
             for p in products[:3]:
