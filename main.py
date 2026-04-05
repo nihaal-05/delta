@@ -1,9 +1,9 @@
-import os
 import requests
 import time
 
 BASE_URL = "https://api.delta.exchange"
 
+# Get BTC price
 def get_btc_price():
     try:
         url = BASE_URL + "/v2/tickers"
@@ -11,8 +11,8 @@ def get_btc_price():
         data = response.json()
 
         for item in data["result"]:
-            if item["symbol"] == "BTCUSD":
-                return float(item["last_price"])
+            if item.get("symbol") == "BTCUSD":
+                return float(item.get("last_price"))
 
         return None
 
@@ -21,42 +21,58 @@ def get_btc_price():
         return None
 
 
-def get_all_options():
+# Get all products
+def get_all_products():
     try:
         url = BASE_URL + "/v2/products"
         response = requests.get(url)
         data = response.json()
-        return data["result"]
+        return data.get("result", [])
     except Exception as e:
         print("Error fetching products:", e)
         return []
 
 
+# Filter BTC options
 def filter_btc_options(products):
     btc_options = []
 
     for p in products:
-        if p["underlying_asset"] == "BTC" and p["contract_type"] == "option":
-            btc_options.append(p)
+        try:
+            symbol = p.get("symbol", "")
+
+            # Easiest reliable filter → symbol contains BTC and option format
+            if "BTC" in symbol and ("-C" in symbol or "-P" in symbol):
+                btc_options.append(p)
+
+        except:
+            continue
 
     return btc_options
 
 
 def run_bot():
     while True:
-        print("\n--- Running Scanner ---")
+        print("\n--- RUNNING SCANNER ---")
 
+        # BTC price
         btc_price = get_btc_price()
-        print(f"BTC Price: {btc_price}")
+        print("BTC Price:", btc_price)
 
-        products = get_all_options()
+        # Products
+        products = get_all_products()
+        print("Total products:", len(products))
+
+        # Filter BTC options
         btc_options = filter_btc_options(products)
+        print("BTC Options Found:", len(btc_options))
 
-        print(f"Total BTC Options Found: {len(btc_options)}")
-
-        # Print first 5 options for now
+        # Print sample options
+        print("\nSample Options:")
         for opt in btc_options[:5]:
-            print(f"{opt['symbol']} | Strike: {opt.get('strike_price')} | Expiry: {opt.get('expiry_date')}")
+            print(
+                f"{opt.get('symbol')} | Strike: {opt.get('strike_price')} | Expiry: {opt.get('expiry_date')}"
+            )
 
         time.sleep(15)
 
