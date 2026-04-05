@@ -11,11 +11,9 @@ total_profit = 0
 def simulate_trade(trade_id):
     global wins, losses, total_profit
 
-    # 🔹 Start option at ATH
     ath = random.uniform(80, 150)
     price = ath
 
-    # 🔹 Levels
     l90 = ath * 0.1
     l95 = ath * 0.05
     l99 = ath * 0.01
@@ -26,9 +24,15 @@ def simulate_trade(trade_id):
     print(f"\n--- Trade {trade_id} ---")
     print("ATH:", round(ath, 2))
 
-    # 🔹 Phase 1: DECAY
-    for step in range(20):
-        price *= random.uniform(0.75, 0.95)
+    for step in range(50):
+
+        # 🔥 realistic movement
+        move = random.uniform(-0.25, 0.15)
+        price *= (1 + move)
+
+        # prevent negative price
+        if price <= 0:
+            price = 0.1
 
         # ENTRY 1
         if len(entries) == 0 and price <= l90:
@@ -49,11 +53,9 @@ def simulate_trade(trade_id):
                 capital_used += TOTAL_CAPITAL * 0.2
                 print("ENTRY 3:", round(price, 2))
 
-    # 🔹 Phase 2: RECOVERY / BOUNCE
-    for step in range(20):
-        price *= random.uniform(1.05, 1.3)
+        # EXIT LOGIC
 
-        # EXIT CONDITIONS
+        # 1 entry → 2x
         if len(entries) == 1:
             if price >= entries[0] * 2:
                 wins += 1
@@ -61,33 +63,29 @@ def simulate_trade(trade_id):
                 print("EXIT 2X:", round(price, 2))
                 return
 
+        # 2+ entries → breakeven
         elif len(entries) >= 2:
             if price >= entries[0]:
                 wins += 1
                 total_profit += TOTAL_CAPITAL * 0.3
-                print("EXIT BREAKEVEN:", round(price, 2))
+                print("EXIT BE:", round(price, 2))
                 return
 
-    # 🔹 LOSS CASE
+    # LOSS
     losses += 1
     total_profit -= capital_used
-    print("LOSS | Capital used:", round(capital_used, 2))
+    print("LOSS | Used:", round(capital_used, 2))
 
 
-# 🔥 RUN BACKTEST
-print("🚀 STARTING BACKTEST...\n")
+print("🚀 START BACKTEST\n")
 
 for i in range(1, TRADES + 1):
     simulate_trade(i)
 
-# 🔥 FINAL RESULTS
-print("\n===== FINAL RESULTS =====")
-print("Total Trades:", TRADES)
+print("\n===== RESULTS =====")
+print("Trades:", TRADES)
 print("Wins:", wins)
 print("Losses:", losses)
-
-winrate = (wins / TRADES) * 100
-print("Win Rate:", round(winrate, 2), "%")
-
+print("Win Rate:", round((wins / TRADES) * 100, 2), "%")
 print("Total Profit:", round(total_profit, 2))
-print("Avg Profit per Trade:", round(total_profit / TRADES, 2))
+print("Avg per Trade:", round(total_profit / TRADES, 2))
