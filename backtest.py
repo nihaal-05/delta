@@ -1,14 +1,17 @@
 import random
 
 TOTAL_CAPITAL = 1000
-TRADES = 100
+TRADES = 200
 
 wins = 0
 losses = 0
 total_profit = 0
 
+win_amounts = []
+loss_amounts = []
 
-def simulate_trade(trade_id):
+
+def simulate_trade():
     global wins, losses, total_profit
 
     ath = random.uniform(80, 150)
@@ -21,16 +24,12 @@ def simulate_trade(trade_id):
     entries = []
     capital_used = 0
 
-    print(f"\n--- Trade {trade_id} ---")
-    print("ATH:", round(ath, 2))
-
     for step in range(50):
 
-        # 🔥 realistic movement
+        # realistic movement
         move = random.uniform(-0.25, 0.15)
         price *= (1 + move)
 
-        # prevent negative price
         if price <= 0:
             price = 0.1
 
@@ -38,54 +37,60 @@ def simulate_trade(trade_id):
         if len(entries) == 0 and price <= l90:
             entries.append(price)
             capital_used += TOTAL_CAPITAL * 0.5
-            print("ENTRY 1:", round(price, 2))
 
         # ENTRY 2
         elif len(entries) == 1 and price <= l95:
             entries.append(price)
             capital_used += TOTAL_CAPITAL * 0.3
-            print("ENTRY 2:", round(price, 2))
 
-        # ENTRY 3 (smart)
+        # ENTRY 3
         elif len(entries) == 2 and price <= l99:
             if price < entries[-1] * 0.8:
                 entries.append(price)
                 capital_used += TOTAL_CAPITAL * 0.2
-                print("ENTRY 3:", round(price, 2))
 
-        # EXIT LOGIC
+        # EXIT
 
         # 1 entry → 2x
         if len(entries) == 1:
             if price >= entries[0] * 2:
+                profit = TOTAL_CAPITAL
+                total_profit += profit
+                win_amounts.append(profit)
                 wins += 1
-                total_profit += TOTAL_CAPITAL
-                print("EXIT 2X:", round(price, 2))
                 return
 
-        # 2+ entries → breakeven
+        # 2+ entries → breakeven type
         elif len(entries) >= 2:
             if price >= entries[0]:
+                profit = TOTAL_CAPITAL * 0.3
+                total_profit += profit
+                win_amounts.append(profit)
                 wins += 1
-                total_profit += TOTAL_CAPITAL * 0.3
-                print("EXIT BE:", round(price, 2))
                 return
 
     # LOSS
     losses += 1
     total_profit -= capital_used
-    print("LOSS | Used:", round(capital_used, 2))
+    loss_amounts.append(capital_used)
 
 
-print("🚀 START BACKTEST\n")
+# 🔥 RUN
+for _ in range(TRADES):
+    simulate_trade()
 
-for i in range(1, TRADES + 1):
-    simulate_trade(i)
+# 🔥 METRICS
+winrate = (wins / TRADES) * 100
 
-print("\n===== RESULTS =====")
+avg_win = sum(win_amounts) / len(win_amounts) if win_amounts else 0
+avg_loss = sum(loss_amounts) / len(loss_amounts) if loss_amounts else 1
+
+rr = avg_win / avg_loss if avg_loss != 0 else 0
+
+print("\n===== BACKTEST RESULTS =====")
 print("Trades:", TRADES)
 print("Wins:", wins)
 print("Losses:", losses)
-print("Win Rate:", round((wins / TRADES) * 100, 2), "%")
+print("Win Rate:", round(winrate, 2), "%")
 print("Total Profit:", round(total_profit, 2))
-print("Avg per Trade:", round(total_profit / TRADES, 2))
+print("RR Ratio:", round(rr, 2))
