@@ -4,7 +4,7 @@ import time
 BASE_URL = "https://api.delta.exchange"
 
 
-# 🔹 Get BTC price (ROBUST)
+# 🔹 Get BTC price (STRICT & FIXED)
 def get_btc_price():
     try:
         url = BASE_URL + "/v2/tickers"
@@ -14,8 +14,8 @@ def get_btc_price():
         for item in data.get("result", []):
             symbol = item.get("symbol", "")
 
-            # pick active BTC market with real price
-            if "BTC" in symbol and float(item.get("mark_price", 0)) > 0:
+            # Only real BTC markets
+            if symbol.startswith("BTC") and float(item.get("mark_price", 0)) > 10000:
                 return float(item.get("mark_price"))
 
         return None
@@ -55,10 +55,9 @@ def filter_btc_options(products):
     return result
 
 
-# 🔹 Get nearest expiry options
+# 🔹 Get nearest expiry only
 def get_nearest_expiry(options):
     try:
-        # sort by expiry
         options = sorted(options, key=lambda x: x.get("settlement_time", ""))
         nearest_time = options[0].get("settlement_time")
 
@@ -68,7 +67,7 @@ def get_nearest_expiry(options):
         return []
 
 
-# 🔹 Select ONE best option (closest strike)
+# 🔹 Select ONE best strike (ATM)
 def select_best_option(options, btc_price):
     best = None
     min_diff = float("inf")
@@ -106,11 +105,11 @@ def run_bot():
             time.sleep(10)
             continue
 
-        # ✅ Filter only nearest expiry
+        # Step 1: nearest expiry
         nearest_options = get_nearest_expiry(btc_options)
         print("Nearest Expiry Options:", len(nearest_options))
 
-        # ✅ Select ONE best strike
+        # Step 2: best strike
         best_option = select_best_option(nearest_options, btc_price)
 
         if best_option:
