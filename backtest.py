@@ -1,4 +1,4 @@
- import random
+import random
 
 TOTAL_CAPITAL = 1000
 TRADES = 200
