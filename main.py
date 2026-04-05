@@ -4,7 +4,7 @@ import time
 BASE_URL = "https://api.delta.exchange"
 
 
-# 🔹 Get BTC price (FIXED)
+# 🔹 Get BTC price (ROBUST)
 def get_btc_price():
     try:
         url = BASE_URL + "/v2/tickers"
@@ -12,13 +12,16 @@ def get_btc_price():
         data = response.json()
 
         for item in data.get("result", []):
-            if item.get("symbol") == ".DEBTCUSDT":
-                return float(item.get("mark_price", 0))
+            symbol = item.get("symbol", "")
+
+            # pick active BTC market with real price
+            if "BTC" in symbol and float(item.get("mark_price", 0)) > 0:
+                return float(item.get("mark_price"))
 
         return None
 
     except Exception as e:
-        print("Error fetching BTC price:", e)
+        print("Error BTC price:", e)
         return None
 
 
@@ -30,31 +33,44 @@ def get_all_products():
         data = response.json()
         return data.get("result", [])
     except Exception as e:
-        print("Error fetching products:", e)
+        print("Error products:", e)
         return []
 
 
 # 🔹 Filter BTC options
 def filter_btc_options(products):
-    btc_options = []
+    result = []
 
     for p in products:
         try:
             contract_type = str(p.get("contract_type", "")).lower()
-            underlying_symbol = p.get("underlying_asset", {}).get("symbol", "")
+            underlying = p.get("underlying_asset", {}).get("symbol", "")
 
-            if "option" in contract_type and underlying_symbol == "BTC":
-                btc_options.append(p)
+            if "option" in contract_type and underlying == "BTC":
+                result.append(p)
 
         except:
             continue
 
-    return btc_options
+    return result
 
 
-# 🔹 Select ONE best strike (CE or PE)
+# 🔹 Get nearest expiry options
+def get_nearest_expiry(options):
+    try:
+        # sort by expiry
+        options = sorted(options, key=lambda x: x.get("settlement_time", ""))
+        nearest_time = options[0].get("settlement_time")
+
+        return [opt for opt in options if opt.get("settlement_time") == nearest_time]
+
+    except:
+        return []
+
+
+# 🔹 Select ONE best option (closest strike)
 def select_best_option(options, btc_price):
-    closest_option = None
+    best = None
     min_diff = float("inf")
 
     for opt in options:
@@ -64,18 +80,18 @@ def select_best_option(options, btc_price):
 
             if diff < min_diff:
                 min_diff = diff
-                closest_option = opt
+                best = opt
 
         except:
             continue
 
-    return closest_option
+    return best
 
 
-# 🔹 Main bot loop
+# 🔹 MAIN LOOP
 def run_bot():
     while True:
-        print("\n--- RUNNING BOT ---")
+        print("\n--- BOT RUNNING ---")
 
         btc_price = get_btc_price()
         print("BTC Price:", btc_price)
@@ -85,16 +101,25 @@ def run_bot():
 
         print("Total BTC Options:", len(btc_options))
 
-        if btc_price and len(btc_options) > 0:
-            best_option = select_best_option(btc_options, btc_price)
+        if btc_price is None or len(btc_options) == 0:
+            print("⚠️ Data not ready")
+            time.sleep(10)
+            continue
 
-            if best_option:
-                print("\n🎯 SELECTED OPTION:")
-                print(
-                    f"{best_option.get('symbol')} | Strike: {best_option.get('strike_price')} | Type: {best_option.get('contract_type')}"
-                )
+        # ✅ Filter only nearest expiry
+        nearest_options = get_nearest_expiry(btc_options)
+        print("Nearest Expiry Options:", len(nearest_options))
+
+        # ✅ Select ONE best strike
+        best_option = select_best_option(nearest_options, btc_price)
+
+        if best_option:
+            print("\n🎯 SELECTED OPTION:")
+            print(
+                f"{best_option.get('symbol')} | Strike: {best_option.get('strike_price')} | Type: {best_option.get('contract_type')}"
+            )
         else:
-            print("No valid data")
+            print("No option selected")
 
         time.sleep(15)
 
