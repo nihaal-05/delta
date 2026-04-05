@@ -1,71 +1,71 @@
 import requests
 import time
 
-BASE_URL = "https://api.delta.exchange"
+DELTA_URL = "https://api.delta.exchange"
+BINANCE_URL = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
 
 
-# 🔹 Get BTC price (FINAL FIXED)
+# 🔹 Get BTC price (RELIABLE)
 def get_btc_price():
     try:
-        url = BASE_URL + "/v2/tickers"
-        response = requests.get(url)
-        data = response.json()
+        r = requests.get(BINANCE_URL, timeout=5)
+        data = r.json()
+        price = float(data["price"])
 
-        for item in data.get("result", []):
-            if item.get("symbol") == "BTCUSDT":
-                return float(item.get("last_price", 0))
+        if price < 10000:
+            raise Exception("Invalid BTC price")
 
-        return None
+        return price
 
     except Exception as e:
-        print("Error BTC price:", e)
+        print("❌ BTC price error:", e)
         return None
 
 
-# 🔹 Get all products
-def get_all_products():
+# 🔹 Get products
+def get_products():
     try:
-        url = BASE_URL + "/v2/products"
-        response = requests.get(url)
-        data = response.json()
+        r = requests.get(DELTA_URL + "/v2/products", timeout=5)
+        data = r.json()
         return data.get("result", [])
     except Exception as e:
-        print("Error products:", e)
+        print("❌ Product fetch error:", e)
         return []
 
 
-# 🔹 Filter BTC options only
+# 🔹 Filter BTC options ONLY
 def filter_btc_options(products):
     result = []
 
     for p in products:
         try:
-            contract_type = str(p.get("contract_type", "")).lower()
-            underlying = p.get("underlying_asset", {}).get("symbol", "")
-
-            if "option" in contract_type and underlying == "BTC":
+            if (
+                "option" in str(p.get("contract_type", "")).lower()
+                and p.get("underlying_asset", {}).get("symbol") == "BTC"
+                and p.get("state") == "live"
+            ):
                 result.append(p)
-
         except:
             continue
 
     return result
 
 
-# 🔹 Get nearest expiry (D1)
+# 🔹 Get nearest expiry
 def get_nearest_expiry(options):
     try:
         options = sorted(options, key=lambda x: x.get("settlement_time", ""))
-        nearest_time = options[0].get("settlement_time")
+        nearest = options[0].get("settlement_time")
 
-        return [opt for opt in options if opt.get("settlement_time") == nearest_time]
+        filtered = [o for o in options if o.get("settlement_time") == nearest]
 
+        return filtered
     except:
         return []
 
 
-# 🔹 Select closest strike (ATM)
-def select_best_option(options, btc_price):
+# 🔹 Select best ATM strike (ONLY ONE)
+def select_atm_option(options, btc_price):
     best = None
     min_diff = float("inf")
 
@@ -77,7 +77,6 @@ def select_best_option(options, btc_price):
             if diff < min_diff:
                 min_diff = diff
                 best = opt
-
         except:
             continue
 
@@ -85,42 +84,46 @@ def select_best_option(options, btc_price):
 
 
 # 🔹 MAIN LOOP
-def run_bot():
+def run():
     while True:
-        print("\n--- BOT RUNNING ---")
+        print("\n==============================")
 
         btc_price = get_btc_price()
         print("BTC Price:", btc_price)
 
-        products = get_all_products()
+        products = get_products()
+        print("Total Products:", len(products))
+
         btc_options = filter_btc_options(products)
+        print("BTC Options:", len(btc_options))
 
-        print("Total BTC Options:", len(btc_options))
-
-        if btc_price is None or len(btc_options) == 0:
-            print("⚠️ Data not ready")
+        if not btc_price or not btc_options:
+            print("⚠️ Waiting for valid data...")
             time.sleep(10)
             continue
 
-        # Step 1: nearest expiry
-        nearest_options = get_nearest_expiry(btc_options)
-        print("Nearest Expiry Options:", len(nearest_options))
+        nearest = get_nearest_expiry(btc_options)
+        print("Nearest Expiry Options:", len(nearest))
 
-        # Step 2: select ONE strike
-        best_option = select_best_option(nearest_options, btc_price)
+        if not nearest:
+            print("⚠️ No nearest expiry options")
+            time.sleep(10)
+            continue
 
-        if best_option:
-            print("\n🎯 SELECTED OPTION:")
-            print(
-                f"{best_option.get('symbol')} | Strike: {best_option.get('strike_price')} | Type: {best_option.get('contract_type')}"
-            )
+        best = select_atm_option(nearest, btc_price)
+
+        if best:
+            print("\n🎯 FINAL SELECTED OPTION:")
+            print("Symbol:", best.get("symbol"))
+            print("Strike:", best.get("strike_price"))
+            print("Type:", best.get("contract_type"))
+            print("Expiry:", best.get("settlement_time"))
         else:
-            print("No option selected")
+            print("⚠️ No option selected")
 
         time.sleep(15)
 
 
 if __name__ == "__main__":
-    print("Bot started...")
-    run_bot()
-    
+    print("🚀 BOT STARTED")
+    run()
